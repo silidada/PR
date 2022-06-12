@@ -119,21 +119,40 @@ def one_hot_label(label_list: list, label_name) -> list:
     return label_one_hot
 
 
-def label_pre_one_hot(path):
-    label_list, img_name = read_label(path)
+def label_pre_one_hot(path1, path2):
+    label_list1, img_name1 = read_label(path1)
+    # print(len(img_name1))
+    label_list2, img_name2 = read_label(path2)
+    # print(len(img_name2))
+    label_list = label_list1 + label_list2
+
+    male = 0
+    total = 0
+
+    # for label in label_list:
+    #     if label is not None:
+    #         total += 1
+    #         if label[0] == 'male':
+    #             male += 1
+    # print(male, total)
+
+    img_name = img_name1 + img_name2
     label_name, label_encoded_list = encode_label(label_list)
     prop_num = len(label_name[-1])
     label_list = one_hot_prop(label_encoded_list, prop_num)
     label_one_hot = one_hot_label(label_list, label_name)
 
-    return label_one_hot, img_name
+    return label_one_hot, img_name, label_name
 
 
 if __name__ == '__main__':
-    label_list, img_name = read_label("../face/faceDR")
-    label_name, label_encoded_list = encode_label(label_list)
-    prop_num = len(label_name[-1])
-    label_list = one_hot_prop(label_encoded_list, prop_num)
-    label_one_hot = one_hot_label(label_list, label_name)
+    # label_list, img_name = read_label("../face/faceDR")
+    # label_name, label_encoded_list = encode_label(label_list)
+    # prop_num = len(label_name[-1])
+    # label_list = one_hot_prop(label_encoded_list, prop_num)
+    # label_one_hot = one_hot_label(label_list, label_name)
+    label_one_hot, img_name, label_name = label_pre_one_hot("../face/faceDR","../face/faceDS")
+    print(label_name)
+
 
 

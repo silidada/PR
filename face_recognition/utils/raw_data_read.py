@@ -4,11 +4,12 @@
 # @Author  : Chen HanJie
 # @FileName: raw_data_read.py
 # @Software: PyCharm
-import cv2
+
 import numpy as np
 import os
 from label_pre import label_pre_one_hot
 import math
+import cv2
 
 
 def read_rawdata(channels, path, image_name_list):
@@ -25,6 +26,7 @@ def read_rawdata(channels, path, image_name_list):
         img = np.fromfile(full_path, dtype='uint8')
         n = int(math.sqrt(img.shape[0]))
         img = img.reshape(n, n, channels)
+        img = cv2.resize(img, (128,128))
         img_list.append(img)
     return img_list
 
@@ -32,8 +34,9 @@ def read_rawdata(channels, path, image_name_list):
 if __name__ == '__main__':
     channels = 1  # 图像的通道数，灰度图为1
     path_rawdata = r"../face/rawdata"
-    path_label = r"../face/faceDR"
-    label_one_hot, img_name = label_pre_one_hot(path_label)
+    path_label1 = r"../face/faceDR"
+    path_label2 = r"../face/faceDS"
+    label_one_hot, img_name, label_name = label_pre_one_hot(path_label1, path_label2)
     img_list = read_rawdata(channels, path_rawdata, img_name)
     print(len(img_list))
 
