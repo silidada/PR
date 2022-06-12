@@ -1,3 +1,10 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+# @Time    : 2022/6/12 12:04
+# @Author  : Chen HanJie
+# @FileName: show_dataset.py
+# @Software: PyCharm
+
 import matplotlib.pyplot as plt
 import matplotlib.image as mping
 import os

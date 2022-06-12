@@ -1,4 +1,10 @@
-# encoding=utf-8
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+# @Time    : 2022/6/12 12:04
+# @Author  : Chen HanJie
+# @FileName: compare.py
+# @Software: PyCharm
+
 import numpy as np
 import cv2
 import os
