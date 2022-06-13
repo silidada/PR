@@ -121,11 +121,11 @@ class Model_simple(nn.Module):
         self.conv2 = nn.Conv2d(16, 16, (3, 3), stride=(2, 2), padding=1)
         self.bn1 = nn.BatchNorm2d(16)
         self.pool1 = nn.MaxPool2d(2)
-        # (16*32*32)
+        # (16*16*16)
         self.conv3 = nn.Conv2d(16, 32, (3,3), stride=(1,1), padding=1)
         self.bn2 = nn.BatchNorm2d(32)
         self.pool2 = nn.MaxPool2d(2)
-        # (32*16*16)
+        # (32*8*8)
         self.conv4 = nn.Conv2d(32, 64, (3,3), stride=(1,1), padding=1)
         self.bn3 = nn.BatchNorm2d(64)
         self.pool3 = nn.MaxPool2d(2)
@@ -157,6 +157,46 @@ class Model_simple(nn.Module):
         x = self.out(x)
         # x = self.out(x)
         # return torch.softmax(x, 1)
+        return self.sigmoid(x)
+
+
+class Model_simpleFCN(nn.Module):
+    def __init__(self):
+        super(Model_simpleFCN, self).__init__()
+        # (1*128*128)
+        self.conv1 = nn.Conv2d(1, 16, (3,3), stride=(2,2), padding=1)
+        # self.conv1 = nn.Conv2d(1, 16, (3, 3), stride=(1, 1), padding=1)
+        self.conv2 = nn.Conv2d(16, 16, (3, 3), stride=(2, 2), padding=1)
+        self.bn1 = nn.BatchNorm2d(16)
+        self.pool1 = nn.MaxPool2d(2)
+        # (16*16*16)
+        self.conv3 = nn.Conv2d(16, 32, (3,3), stride=(1,1), padding=1)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.pool2 = nn.MaxPool2d(2)
+        # (32*8*8)
+        self.conv4 = nn.Conv2d(32, 64, (3,3), stride=(1,1), padding=1)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.pool3 = nn.MaxPool2d(2)
+        # self.conv5 = nn.Conv2d(64, 64, (3,3), stride=(1,1), padding=1)
+        # (64*8*8)
+        self.conv5 = nn.Conv2d(64, 64, (3,3),stride=(2,2), padding=1)
+        self.conv51 = nn.Conv2d(64, 64, (3,3),stride=(2,2), padding=1)
+        self.conv6 = nn.Conv2d(64, 16, (1,1), stride=(1,1), padding=0)
+        self.conv7 = nn.Conv2d(16, 2, (1, 1), stride=(1, 1), padding=0)
+
+        self.sigmoid = nn.Sigmoid()
+    def forward(self, x):
+        input_size = x.size(0)
+        x = F.relu(self.pool1(self.bn1(self.conv2(self.conv1(x)))))
+        x = F.relu(self.pool2(self.bn2(self.conv3(x))))
+        x = F.relu(self.pool3(self.bn3(self.conv4(x))))
+        # x = self.conv6(self.conv5(x))
+        x = self.conv5(x)
+        x = self.conv51(x)
+        x = self.conv6(x)
+        x = self.conv7(x)
+        x = x.view(input_size, -1)
+
         return self.sigmoid(x)
 
 
@@ -215,6 +255,6 @@ class Model_simple64(nn.Module):
 
 if __name__ == '__main__':
     test_tensor = torch.randn((254,1,64,64))
-    model = Model_simple64()
+    model = Model_simpleFCN()
     result = model(test_tensor)
     print(result.shape)

@@ -12,11 +12,13 @@ import torch
 from torch import nn
 from utils.label_pre import label_pre_one_hot
 from utils.raw_data_read import read_rawdata
-from model import Model, Model_simple, Model_simple64
+from model import Model, Model_simple, Model_simple64, Model_simpleFCN
 from torch import optim
 from tqdm import tqdm
 import numpy as np
 import cv2
+import os
+import matplotlib.pyplot as plt
 
 
 def load_batch_data(label, path_rawdata, img_name, batch_size, step, steps, dsize):
@@ -49,14 +51,14 @@ def load_batch_data(label, path_rawdata, img_name, batch_size, step, steps, dsiz
     np.random.shuffle(img_list_)
     np.random.seed(11)
     np.random.shuffle(label_list)
-    # np.random.seed(2)
-    # np.random.shuffle(img_list_)
-    # np.random.seed(2)
-    # np.random.shuffle(label_list)
-    # np.random.seed(3)
-    # np.random.shuffle(img_list_)
-    # np.random.seed(3)
-    # np.random.shuffle(label_list)
+    np.random.seed(2)
+    np.random.shuffle(img_list_)
+    np.random.seed(2)
+    np.random.shuffle(label_list)
+    np.random.seed(3)
+    np.random.shuffle(img_list_)
+    np.random.seed(3)
+    np.random.shuffle(label_list)
 
     img_tensor = torch.tensor(img_list_, dtype=torch.float) / 255.
     label_tensor = torch.tensor(label_list, dtype=torch.float)
@@ -66,9 +68,12 @@ def load_batch_data(label, path_rawdata, img_name, batch_size, step, steps, dsiz
 if __name__ == '__main__':
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     lr = 0.1
-    epochs = 500
+    epochs = 10
     batch_size = 256
     img_szie = 128
+    model_save_path = "./model"
+    if not os.path.exists(model_save_path):
+        os.mkdir(model_save_path)
 
     path_rawdata = "./face/rawdata"
     path_label1 = "./face/faceDR"
@@ -121,6 +126,12 @@ if __name__ == '__main__':
 
     rooo = 0
     corr_eval=0
+    eval_acc_list = []
+    val_acc_list = []
+    train_acc_list = []
+    train_loss = []
+
+
     for epoch in range(epochs):
         val_label = []
         val_img_name = []
@@ -187,13 +198,15 @@ if __name__ == '__main__':
                 corr_train += torch.eq(pred1, real1).sum().float().item()
 
                 loss_ = loss_total.data
+
                 # if loss_ < 0.05:
                 #     print(result)
                 #     print(label1)
                 _tqdm.set_postfix({"train_acc":acc_train, "val_acc": corr_val, "eval_acc": corr_eval,"losss": loss_})
                 _tqdm.update(1)
-
+        train_loss.append(loss_.item())
         acc_train = corr_train / len(train_img_name)
+        train_acc_list.append(acc_train)
         corr_val = 0
         for step in range(val_steps):
             img_tensor, label_tensor = load_batch_data(val_label, path_rawdata, val_img_name, batch_size, step,
@@ -239,6 +252,44 @@ if __name__ == '__main__':
 
                 corr_eval += torch.eq(pred1, real1).sum().float().item()
             corr_eval /= len(test_img_name)
+            if corr_eval > best_acc:
+                torch.save(model.state_dict(), os.path.join(model_save_path, "best.pt"))
+        eval_acc_list.append(corr_eval)
         corr_val /= len(val_img_name)
-
+        val_acc_list.append(corr_val)
         lr_sch.step()
+
+    x = [i for i in range(len(train_loss))]
+    fig = plt.figure(figsize=(10,5))
+    plt.plot(x, train_loss, c='blue', label='train loss')
+    plt.legend(loc='best')
+    plt.xlabel("epochs")
+    plt.ylabel("loss")
+    plt.title("train")
+    plt.savefig("./result1.png")
+    plt.clf()
+    # fig = plt.figure(figsize=(10, 5))
+    x = [i for i in range(len(train_acc_list))]
+    plt.plot(x, train_acc_list, c='red', label='train accuracy')
+
+    x = [i for i in range(len(val_acc_list))]
+    plt.plot(x, val_acc_list, c='blue', label='valid accuracy')
+
+    plt.plot(x, eval_acc_list, c='green', label='evaluate accuracy')
+    plt.legend(loc='best')
+    plt.xlabel("epochs")
+    plt.ylabel("accuracy")
+    plt.title("train")
+    # fig.set_xlabel('epoch')
+    plt.savefig("./result2.png")
+
+    data = torch.randn(2, 1, 128, 128).to(device)
+
+    # 导出为onnx格式
+    torch.onnx.export(
+        model,
+        data,
+        'model.onnx',
+        export_params=True,
+        opset_version=8,
+    )
