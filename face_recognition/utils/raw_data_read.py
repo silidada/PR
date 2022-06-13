@@ -12,7 +12,7 @@ import math
 import cv2
 
 
-def read_rawdata(channels, path, image_name_list):
+def read_rawdata(channels, path, image_name_list, dsize):
     assert os.path.exists(path)
 
     img_list = []
@@ -20,13 +20,13 @@ def read_rawdata(channels, path, image_name_list):
     for name in image_name_list:
         full_path = os.path.join(path, name)
         if not os.path.exists(full_path):
-            print("数据缺失：", name)
+            # print("数据缺失：", name)
             img_list.append(None)
             continue
         img = np.fromfile(full_path, dtype='uint8')
         n = int(math.sqrt(img.shape[0]))
         img = img.reshape(n, n, channels)
-        img = cv2.resize(img, (128,128))
+        img = cv2.resize(img, (dsize,dsize))
         img_list.append(img)
     return img_list
 
