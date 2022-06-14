@@ -5,70 +5,65 @@
 # @FileName: train.py
 # @Software: PyCharm
 import sys
-
-sys.path.append(".")
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+sys.path.append("../..")
 sys.path.append("./utils")
 import torch
 from torch import nn
 from utils.label_pre import label_pre_one_hot
 from utils.raw_data_read import read_rawdata
-from model import Model, Model_simple, Model_simple64, Model_simpleFCN
+from model import Model, Model_simple, Model_simple64, Model_simpleFCN, Model_depth_wise
 from torch import optim
 from tqdm import tqdm
 import numpy as np
 import cv2
 import os
 import matplotlib.pyplot as plt
+import random
 
 
-def load_batch_data(label, path_rawdata, img_name, batch_size, step, steps, dsize):
+def load_batch_data(label, path_rawdata, img_name, batch_size, step, steps, dsize, add_noisy=False):
     if step == steps - 1:
         batch_label = label[step * batch_size:-1]
         name = img_name[step * batch_size:-1]
     else:
         batch_label = label[step * batch_size:(step + 1) * batch_size]
         name = img_name[step * batch_size:(step + 1) * batch_size]
-    img_list = read_rawdata(1, path_rawdata, name, dsize)
+
+    ii = random.randint(0,200)
+
+    random.seed(ii)
+    random.shuffle(label)
+    random.seed(ii)
+    random.shuffle(img_name)
+
+    img_list = read_rawdata(1, path_rawdata, name, dsize, add_noisy=add_noisy)
 
     img_list_ = []
     label_list = []
 
     for i in range(len(img_list)):
         if img_list[i] is None:
+            # print("img_list[i] is None")
             continue
         if batch_label[i] is None:
+            # print(batch_label[i] is None)
             continue
         img_list_.append(img_list[i])
         label_list.append(batch_label[i])
 
-    img_list_ = np.array(img_list_)
-    label_list = np.array(label_list)
-    np.random.seed(5)
-    np.random.shuffle(img_list_)
-    np.random.seed(5)
-    np.random.shuffle(label_list)
-    np.random.seed(11)
-    np.random.shuffle(img_list_)
-    np.random.seed(11)
-    np.random.shuffle(label_list)
-    np.random.seed(2)
-    np.random.shuffle(img_list_)
-    np.random.seed(2)
-    np.random.shuffle(label_list)
-    np.random.seed(3)
-    np.random.shuffle(img_list_)
-    np.random.seed(3)
-    np.random.shuffle(label_list)
+    # print(len(img_list_))
 
-    img_tensor = torch.tensor(img_list_, dtype=torch.float) / 255.
-    label_tensor = torch.tensor(label_list, dtype=torch.float)
+    img_tensor = torch.tensor(np.array(img_list_), dtype=torch.float) / 255.
+    label_tensor = torch.tensor(np.array(label_list), dtype=torch.float)
     return img_tensor, label_tensor
 
 
 if __name__ == '__main__':
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     lr = 0.1
-    epochs = 10
+    epochs = 200
     batch_size = 256
     img_szie = 128
     model_save_path = "./model"
@@ -79,19 +74,31 @@ if __name__ == '__main__':
     path_label1 = "./face/faceDR"
     path_label2 = "./face/faceDS"
     label_one_hot, img_name, label_name = label_pre_one_hot(path_label1, path_label2)
-    train_label_all = label_one_hot[:3600]
-    train_img_name_all = img_name[:3600]
+
+    random.seed(100)
+    random.shuffle(label_one_hot)
+    random.seed(100)
+    random.shuffle(img_name)
+
+    label_size_factor = int(len(label_one_hot) // 10)
+    train_label_all = label_one_hot[:label_size_factor*9]
+    train_img_name_all = img_name[:label_size_factor*9]
     train_label_all_list = []
     train_img_name_all_list = []
+
+    train_label_size_factor = int(len(train_label_all) // 10)
+
+    # print(train_label_size_factor, len(train_img_name_all))
+
     for i in range(10):
-        train_img_name_all_list.append(train_img_name_all[360*i:360*(i+1)])
-        train_label_all_list.append(train_label_all[360*i:360*(i+1)])
+        train_img_name_all_list.append(train_img_name_all[train_label_size_factor*i:train_label_size_factor*(i+1)])
+        train_label_all_list.append(train_label_all[train_label_size_factor*i:train_label_size_factor*(i+1)])
     # train_label = label_one_hot[:3200]
     # val_label = label_one_hot[3200:3600]
-    test_label = label_one_hot[3600:4000]
+    test_label = label_one_hot[label_size_factor*9:]
     # train_img_name = img_name[:3200]
     # val_img_name = img_name[3200:3600]
-    test_img_name = img_name[3600:4000]
+    test_img_name = img_name[label_size_factor*9:]
     train_data_size = len(train_label_all)*9/10
     steps = train_data_size // batch_size
     if not train_data_size % batch_size == 0:
@@ -108,12 +115,13 @@ if __name__ == '__main__':
         eval_steps += 1
     eval_steps = int(eval_steps)
 
-    model = Model_simple().to(device)
+    model = Model_depth_wise().to(device)
     opt = optim.SGD(model.parameters(), lr=lr)
     lr_sch = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=0.98)
     # loss_fn = nn.BCEWithLogitsLoss()
-    loss_fn = nn.MSELoss()
-    loss_fn1 = nn.MSELoss(reduction='none')
+    # loss_fn = nn.MSELoss()
+    loss_fn = nn.CrossEntropyLoss()
+    # loss_fn1 = nn.MSELoss(reduction='none')
     best_acc, best_epoch = 0, 0
     global_step = 0
 
@@ -130,6 +138,8 @@ if __name__ == '__main__':
     val_acc_list = []
     train_acc_list = []
     train_loss = []
+
+    # print(len(train_img_name_all_list[-1]))
 
 
     for epoch in range(epochs):
@@ -159,7 +169,8 @@ if __name__ == '__main__':
             _tqdm.set_description('epoch: {}/{}'.format(epoch + 1, epochs))
             for step in range(steps):
                 img_tensor, label_tensor = load_batch_data(train_label, path_rawdata, train_img_name, batch_size, step,
-                                                           steps, img_szie)
+                                                           steps, img_szie, add_noisy=True)
+                # print(train_label)
                 img_tensor = img_tensor.unsqueeze(1)
                 img_tensor = img_tensor.to(device)
                 label_tensor = label_tensor.to(device)
@@ -229,35 +240,39 @@ if __name__ == '__main__':
 
             corr_val += torch.eq(pred1, real1).sum().float().item()
 
-        if epoch%5==0:
-            corr_eval = 0.
-            for step in range(eval_steps):
-                img_tensor, label_tensor = load_batch_data(test_label, path_rawdata, test_img_name, batch_size, step,
-                                                           eval_steps, img_szie)
-                img_tensor = img_tensor.unsqueeze(1)
-                img_tensor = img_tensor.to(device)
-                label_tensor = label_tensor.to(device)
-                with torch.no_grad():
-                    result = model(img_tensor)
-                result = result.squeeze()
+        corr_eval = 0.
+        for step in range(eval_steps):
+            img_tensor, label_tensor = load_batch_data(test_label, path_rawdata, test_img_name, batch_size, step,
+                                                       eval_steps, img_szie)
+            img_tensor = img_tensor.unsqueeze(1)
+            img_tensor = img_tensor.to(device)
+            # print(img_tensor.shape, label_tensor.shape)
+            label_tensor = label_tensor.to(device)
+            with torch.no_grad():
+                result = model(img_tensor)
+            result = result.squeeze()
 
-                # result[result < 0.5] = 0
-                # result[result >= 0.5] = 1
+            # result[result < 0.5] = 0
+            # result[result >= 0.5] = 1
 
-                x1 = result[:, 0:2]
-                y1 = label_tensor[:, 0:2]
+            x1 = result[:, 0:2]
+            y1 = label_tensor[:, 0:2]
 
-                pred1 = x1.argmax(dim=1)
-                real1 = y1.argmax(dim=1)
+            # print(y1)
 
-                corr_eval += torch.eq(pred1, real1).sum().float().item()
-            corr_eval /= len(test_img_name)
-            if corr_eval > best_acc:
-                torch.save(model.state_dict(), os.path.join(model_save_path, "best.pt"))
+            pred1 = x1.argmax(dim=1)
+            real1 = y1.argmax(dim=1)
+
+            corr_eval += torch.eq(pred1, real1).sum().float().item()
+
+        corr_eval /= len(test_img_name)
+        if corr_eval > best_acc:
+            torch.save(model.state_dict(), os.path.join(model_save_path, "best.pt"))
         eval_acc_list.append(corr_eval)
         corr_val /= len(val_img_name)
         val_acc_list.append(corr_val)
         lr_sch.step()
+
 
     x = [i for i in range(len(train_loss))]
     fig = plt.figure(figsize=(10,5))
@@ -283,7 +298,7 @@ if __name__ == '__main__':
     # fig.set_xlabel('epoch')
     plt.savefig("./result2.png")
 
-    data = torch.randn(2, 1, 128, 128).to(device)
+    data = torch.randn(2, 1, img_szie, img_szie).to(device)
 
     # 导出为onnx格式
     torch.onnx.export(
