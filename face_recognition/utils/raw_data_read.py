@@ -57,7 +57,7 @@ def read_rawdata(channels, path, image_name_list, dsize, add_noisy=False):
 
     img_list = []
 
-    num_noisy = len(image_name_list) // 8
+    num_noisy = len(image_name_list) // 10
     ii = 0
 
     for name in image_name_list:
@@ -73,7 +73,7 @@ def read_rawdata(channels, path, image_name_list, dsize, add_noisy=False):
 
         if ii < num_noisy and add_noisy:
             mean = 0
-            sigma = 30
+            sigma = 1.0
             gauss = np.random.normal(mean, sigma, (dsize, dsize))
             # print(gauss.shape, img.shape)
             img = img + gauss
