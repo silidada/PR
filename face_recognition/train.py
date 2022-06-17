@@ -6,7 +6,7 @@
 # @Software: PyCharm
 import sys
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 sys.path.append("../..")
 sys.path.append("./utils")
 import torch
@@ -115,7 +115,7 @@ if __name__ == '__main__':
         eval_steps += 1
     eval_steps = int(eval_steps)
 
-    model = Model_depth_wise_fc().to(device)
+    model = Model_simple().to(device)
     opt = optim.SGD(model.parameters(), lr=lr)
     lr_sch = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=0.99)
     # loss_fn = nn.BCEWithLogitsLoss()
