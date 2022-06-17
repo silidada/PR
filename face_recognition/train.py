@@ -6,13 +6,14 @@
 # @Software: PyCharm
 import sys
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+
+# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 sys.path.append("../..")
-sys.path.append("./utils")
+sys.path.append("util")
 import torch
 from torch import nn
-from utils.label_pre import label_pre_one_hot
-from utils.raw_data_read import read_rawdata
+from util.label_pre import label_pre_one_hot
+from util.raw_data_read import read_rawdata
 from model import Model, Model_simple, Model_simple64, Model_simpleFCN, Model_depth_wise, Model_depth_wise_fc
 from torch import optim
 from tqdm import tqdm
@@ -21,59 +22,72 @@ import cv2
 import os
 import matplotlib.pyplot as plt
 import random
-
-
-def load_batch_data(label, path_rawdata, img_name, batch_size, step, steps, dsize, add_noisy=False):
-    if step == steps - 1:
-        batch_label = label[step * batch_size:-1]
-        name = img_name[step * batch_size:-1]
-    else:
-        batch_label = label[step * batch_size:(step + 1) * batch_size]
-        name = img_name[step * batch_size:(step + 1) * batch_size]
-
-    ii = random.randint(0,200)
-
-    random.seed(ii)
-    random.shuffle(label)
-    random.seed(ii)
-    random.shuffle(img_name)
-
-    img_list = read_rawdata(1, path_rawdata, name, dsize, add_noisy=add_noisy)
-
-    img_list_ = []
-    label_list = []
-
-    for i in range(len(img_list)):
-        if img_list[i] is None:
-            # print("img_list[i] is None")
-            continue
-        if batch_label[i] is None:
-            # print(batch_label[i] is None)
-            continue
-        img_list_.append(img_list[i])
-        label_list.append(batch_label[i])
-
-    # print(len(img_list_))
-
-    img_tensor = torch.tensor(np.array(img_list_), dtype=torch.float) / 255.
-    label_tensor = torch.tensor(np.array(label_list), dtype=torch.float)
-    return img_tensor, label_tensor
+import argparse
+from util.load_model import load_model
+from util.load_batch_data import load_batch_data
 
 
 if __name__ == '__main__':
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    lr = 0.2
-    epochs = 1000
-    batch_size = 256
-    img_szie = 128
-    model_save_path = "./model"
+    parser = argparse.ArgumentParser(description='Gender recognize train.')
+    parser.add_argument('--Model', type=str, default='Model',
+                        help='The Model you want to train, such as Model, Model_wise, Model_simple etc.')
+    parser.add_argument('--epochs', type=int, default=100,
+                        help='The train epochs.')
+    parser.add_argument('--train_label_input', type=str, default="./face/faceDR",
+                        help='The train dataset origin path.')
+    parser.add_argument('--raw_data_dir', type=str, default="./face/rawdata",
+                        help='The raw data directory.')
+    parser.add_argument('--model_save_path', type=str, default="./model",
+                        help='Model parameter save path.')
+    parser.add_argument('--data_enhance', action="store_true",
+                        help='Do you want to enhance the data?')
+    parser.add_argument('--init_lr', type=float, default=0.2,
+                        help='The initial learning rate')
+    parser.add_argument('--batch_size', type=int, default=256,
+                        help='The training batch size, it is up to your memory.')
+    parser.add_argument('--cuda', action="store_true",
+                        help='Do you want to use the cuda?')
+    parser.add_argument('--cuda_id', type=int, default=0,
+                        help='Do you want to use the cuda?')
+    opt = parser.parse_args()
+
+    print(opt)
+
+    if opt.cuda:
+        if torch.cuda.is_available():
+            device = torch.device('cuda'+':'+str(opt.cuda_id))
+        else:
+            print("cuda is not available. Now use the cpu or you can press 'ctrl+C' to pulse it")
+            device = torch.device('cpu')
+    else:
+        device = torch.device('cpu')
+
+    lr = opt.init_lr
+    epochs = opt.epochs
+    batch_size = opt.batch_size
+
+    model_name = opt.Model
+
+    if not opt.data_enhance:
+        model_name += "_no_enhance"
+
+    model, img_size = load_model(opt)
+
+    model = model.to(device)
+
+    data_enhance = opt.data_enhance
+    model_save_path = opt.model_save_path
     if not os.path.exists(model_save_path):
         os.mkdir(model_save_path)
 
     path_rawdata = "./face/rawdata"
     path_label1 = "./face/faceDR"
     path_label2 = "./face/faceDS"
-    label_one_hot, img_name, label_name = label_pre_one_hot(path_label1, path_label2)
+    label_one_hot, img_name, label_name = label_pre_one_hot([path_label1, path_label2])
+
+    with open(os.path.join(model_save_path, model_name + ".txt"),"w") as f:
+        f.write(label_name[0][0] + " 0\n")
+        f.write(label_name[0][1] + " 1\n")
 
     random.seed(100)
     random.shuffle(label_one_hot)
@@ -81,8 +95,8 @@ if __name__ == '__main__':
     random.shuffle(img_name)
 
     label_size_factor = int(len(label_one_hot) // 10)
-    train_label_all = label_one_hot[:label_size_factor*9]
-    train_img_name_all = img_name[:label_size_factor*9]
+    train_label_all = label_one_hot[:label_size_factor * 9]
+    train_img_name_all = img_name[:label_size_factor * 9]
     train_label_all_list = []
     train_img_name_all_list = []
 
@@ -91,22 +105,23 @@ if __name__ == '__main__':
     # print(train_label_size_factor, len(train_img_name_all))
 
     for i in range(10):
-        train_img_name_all_list.append(train_img_name_all[train_label_size_factor*i:train_label_size_factor*(i+1)])
-        train_label_all_list.append(train_label_all[train_label_size_factor*i:train_label_size_factor*(i+1)])
+        train_img_name_all_list.append(
+            train_img_name_all[train_label_size_factor * i:train_label_size_factor * (i + 1)])
+        train_label_all_list.append(train_label_all[train_label_size_factor * i:train_label_size_factor * (i + 1)])
     # train_label = label_one_hot[:3200]
     # val_label = label_one_hot[3200:3600]
-    test_label = label_one_hot[label_size_factor*9:]
+    test_label = label_one_hot[label_size_factor * 9:]
     # train_img_name = img_name[:3200]
     # val_img_name = img_name[3200:3600]
-    test_img_name = img_name[label_size_factor*9:]
-    train_data_size = len(train_label_all)*9/10
+    test_img_name = img_name[label_size_factor * 9:]
+    train_data_size = len(train_label_all) * 9 / 10
     steps = train_data_size // batch_size
     if not train_data_size % batch_size == 0:
         steps += 1
     steps = int(steps)
 
-    val_steps = (len(train_label_all)*1/10) // batch_size
-    if not (len(train_label_all)*1/10) % batch_size == 0:
+    val_steps = (len(train_label_all) * 1 / 10) // batch_size
+    if not (len(train_label_all) * 1 / 10) % batch_size == 0:
         val_steps += 1
     val_steps = int(val_steps)
 
@@ -115,7 +130,6 @@ if __name__ == '__main__':
         eval_steps += 1
     eval_steps = int(eval_steps)
 
-    model = Model_simple().to(device)
     opt = optim.SGD(model.parameters(), lr=lr)
     lr_sch = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=0.99)
     # loss_fn = nn.BCEWithLogitsLoss()
@@ -133,14 +147,13 @@ if __name__ == '__main__':
     acc_eval = 0
 
     rooo = 0
-    corr_eval=0
+    corr_eval = 0
     eval_acc_list = []
     val_acc_list = []
     train_acc_list = []
     train_loss = []
 
     # print(len(train_img_name_all_list[-1]))
-
 
     for epoch in range(epochs):
         val_label = []
@@ -157,7 +170,7 @@ if __name__ == '__main__':
                 train_img_name += train_img_name_all_list[i]
         rooo += 1
         if rooo == 10:
-            rooo=0
+            rooo = 0
         # train_label = label_one_hot[:3200]
         # val_label = label_one_hot[3200:3600]
         # test_label = label_one_hot[3600:4000]
@@ -170,7 +183,7 @@ if __name__ == '__main__':
             train_size = 0
             for step in range(steps):
                 img_tensor, label_tensor = load_batch_data(train_label, path_rawdata, train_img_name, batch_size, step,
-                                                           steps, img_szie, add_noisy=False)
+                                                           steps, img_size, add_noisy=data_enhance)
                 # print(train_label)
                 img_tensor = img_tensor.unsqueeze(1)
                 img_tensor = img_tensor.to(device)
@@ -197,7 +210,7 @@ if __name__ == '__main__':
                 # loss3 = loss_fn(result3, label3)
                 # loss4 = loss_fn(result4, label4)
                 # loss5 = loss_fn1(result5, label5)
-                loss_total = loss1# + loss2 + loss3 + loss4 + loss5
+                loss_total = loss1  # + loss2 + loss3 + loss4 + loss5
                 # print(loss_fn1(result1, label1))
                 opt.zero_grad()
                 loss_total.backward()
@@ -215,7 +228,7 @@ if __name__ == '__main__':
                 # if loss_ < 0.05:
                 #     print(result)
                 #     print(label1)
-                _tqdm.set_postfix({"train_acc":acc_train, "val_acc": corr_val, "eval_acc": corr_eval,"losss": loss_})
+                _tqdm.set_postfix({"train_acc": acc_train, "val_acc": corr_val, "eval_acc": corr_eval, "losss": loss_})
                 _tqdm.update(1)
         train_loss.append(loss_.item())
         acc_train = corr_train / train_size
@@ -224,7 +237,7 @@ if __name__ == '__main__':
         val_size = 0
         for step in range(val_steps):
             img_tensor, label_tensor = load_batch_data(val_label, path_rawdata, val_img_name, batch_size, step,
-                                                       val_steps, img_szie)
+                                                       val_steps, img_size)
             img_tensor = img_tensor.unsqueeze(1)
             img_tensor = img_tensor.to(device)
             label_tensor = label_tensor.to(device)
@@ -248,7 +261,7 @@ if __name__ == '__main__':
         eval_size = 0
         for step in range(eval_steps):
             img_tensor, label_tensor = load_batch_data(test_label, path_rawdata, test_img_name, batch_size, step,
-                                                       eval_steps, img_szie)
+                                                       eval_steps, img_size)
             img_tensor = img_tensor.unsqueeze(1)
             img_tensor = img_tensor.to(device)
             # print(img_tensor.shape, label_tensor.shape)
@@ -273,22 +286,21 @@ if __name__ == '__main__':
 
         corr_eval /= eval_size
         if corr_eval > best_acc:
-            torch.save(model.state_dict(), os.path.join(model_save_path, "best0.pt"))
+            torch.save(model.state_dict(), os.path.join(model_save_path, "best_" + model_name + ".pt"))
         eval_acc_list.append(corr_eval)
 
         corr_val /= val_size
         val_acc_list.append(corr_val)
         lr_sch.step()
 
-
     x = [i for i in range(len(train_loss))]
-    fig = plt.figure(figsize=(10,5))
+    fig = plt.figure(figsize=(10, 5))
     plt.plot(x, train_loss, c='blue', label='train loss')
     plt.legend(loc='best')
     plt.xlabel("epochs")
     plt.ylabel("loss")
     plt.title("train")
-    plt.savefig("./result1.png")
+    plt.savefig("./result_loss_" + model_name + ".png")
     plt.clf()
     # fig = plt.figure(figsize=(10, 5))
     x = [i for i in range(len(train_acc_list))]
@@ -303,15 +315,15 @@ if __name__ == '__main__':
     plt.ylabel("accuracy")
     plt.title("train")
     # fig.set_xlabel('epoch')
-    plt.savefig("./result2.png")
+    plt.savefig("./result_acc_" + model_name + ".png")
 
-    data = torch.randn(2, 1, img_szie, img_szie).to(device)
+    data = torch.randn(2, 1, img_size, img_size).to(device)
 
     # 导出为onnx格式
     torch.onnx.export(
         model,
         data,
-        'model.onnx',
+        model_name + '.onnx',
         export_params=True,
         opset_version=8,
     )

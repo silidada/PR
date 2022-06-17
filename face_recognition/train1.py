@@ -8,7 +8,7 @@ import sys
 import os
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 sys.path.append("../..")
-sys.path.append("./utils")
+sys.path.append("util")
 import torch
 from torch import nn
 from utils.label_pre import label_pre_one_hot

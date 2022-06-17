@@ -119,13 +119,13 @@ def one_hot_label(label_list: list, label_name) -> list:
     return label_one_hot
 
 
-def label_pre_one_hot(path1, path2):
-    label_list1, img_name1 = read_label(path1)
-    # print(len(img_name1))
-    label_list2, img_name2 = read_label(path2)
-    # print(len(img_name2))
-    label_list = label_list1 + label_list2
-
+def label_pre_one_hot(path_list:list):
+    label_list = []
+    img_name = []
+    for path in path_list:
+        label_list1, img_name1 = read_label(path)
+        label_list += label_list1
+        img_name += img_name1
     male = 0
     total = 0
 
@@ -135,8 +135,6 @@ def label_pre_one_hot(path1, path2):
     #         if label[0] == 'male':
     #             male += 1
     # print(male, total)
-
-    img_name = img_name1 + img_name2
     label_name, label_encoded_list = encode_label(label_list)
     prop_num = len(label_name[-1])
     label_list = one_hot_prop(label_encoded_list, prop_num)
