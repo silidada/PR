@@ -31,10 +31,9 @@
 综上所述，我们使用了全卷积深度残差网络，模型输入为（n\*128\*128\*1），输出为（n\*2）。
 
 具体模型结果如下：
+[原图](imgs/model.png)
 
-[原图](.\output\model_full_acc94\model.png)
-
-<img src=".\output\model_full_acc94\model.png" alt="model" style="zoom: 50%;" />
+<img src=".imgs/model.png" alt="model" style="zoom: 50%;" />
 
 ### 2. 简化模型
 
@@ -49,10 +48,9 @@
 为了增加模型的鲁棒性，我们将原始模型的残差通道拓展至三条。
 
 具体如下图：
+[原图](imgs/model_deep_wise.png)
 
-[原图](.\output\model_deep_wise_acc94\model.png)
-
-<img src=".\output\model_deep_wise_acc94\model.png" alt="model" style="zoom: 50%;" />
+<img src="imgs/model_deep_wise.png" alt="model" style="zoom: 50%;" />
 
 ## 训练策略
 
