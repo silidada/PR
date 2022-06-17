@@ -13,7 +13,7 @@ import torch
 from torch import nn
 from utils.label_pre import label_pre_one_hot
 from utils.raw_data_read import read_rawdata
-from model import Model, Model_simple, Model_simple64, Model_simpleFCN, Model_depth_wise
+from model import Model, Model_simple, Model_simple64, Model_simpleFCN, Model_depth_wise, Model_depth_wise_fc
 from torch import optim
 from tqdm import tqdm
 import numpy as np
@@ -62,8 +62,8 @@ def load_batch_data(label, path_rawdata, img_name, batch_size, step, steps, dsiz
 
 if __name__ == '__main__':
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-    lr = 0.1
-    epochs = 200
+    lr = 0.2
+    epochs = 1000
     batch_size = 256
     img_szie = 128
     model_save_path = "./model"
@@ -115,13 +115,13 @@ if __name__ == '__main__':
         eval_steps += 1
     eval_steps = int(eval_steps)
 
-    model = Model_depth_wise().to(device)
+    model = Model_depth_wise_fc().to(device)
     opt = optim.SGD(model.parameters(), lr=lr)
-    lr_sch = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=0.98)
+    lr_sch = torch.optim.lr_scheduler.ExponentialLR(opt, gamma=0.99)
     # loss_fn = nn.BCEWithLogitsLoss()
     # loss_fn = nn.MSELoss()
     loss_fn = nn.CrossEntropyLoss()
-    # loss_fn1 = nn.MSELoss(reduction='none')
+    loss_fn1 = nn.MSELoss(reduction='none')
     best_acc, best_epoch = 0, 0
     global_step = 0
 
@@ -167,9 +167,10 @@ if __name__ == '__main__':
         with tqdm(total=len(range(steps))) as _tqdm:  # 使用需要的参数对tqdm进行初始化
 
             _tqdm.set_description('epoch: {}/{}'.format(epoch + 1, epochs))
+            train_size = 0
             for step in range(steps):
                 img_tensor, label_tensor = load_batch_data(train_label, path_rawdata, train_img_name, batch_size, step,
-                                                           steps, img_szie, add_noisy=True)
+                                                           steps, img_szie, add_noisy=False)
                 # print(train_label)
                 img_tensor = img_tensor.unsqueeze(1)
                 img_tensor = img_tensor.to(device)
@@ -207,6 +208,7 @@ if __name__ == '__main__':
                 real1 = label1.argmax(dim=1)
 
                 corr_train += torch.eq(pred1, real1).sum().float().item()
+                train_size += img_tensor.size(0)
 
                 loss_ = loss_total.data
 
@@ -216,9 +218,10 @@ if __name__ == '__main__':
                 _tqdm.set_postfix({"train_acc":acc_train, "val_acc": corr_val, "eval_acc": corr_eval,"losss": loss_})
                 _tqdm.update(1)
         train_loss.append(loss_.item())
-        acc_train = corr_train / len(train_img_name)
+        acc_train = corr_train / train_size
         train_acc_list.append(acc_train)
         corr_val = 0
+        val_size = 0
         for step in range(val_steps):
             img_tensor, label_tensor = load_batch_data(val_label, path_rawdata, val_img_name, batch_size, step,
                                                        val_steps, img_szie)
@@ -239,8 +242,10 @@ if __name__ == '__main__':
             real1 = y1.argmax(dim=1)
 
             corr_val += torch.eq(pred1, real1).sum().float().item()
+            val_size += img_tensor.size(0)
 
         corr_eval = 0.
+        eval_size = 0
         for step in range(eval_steps):
             img_tensor, label_tensor = load_batch_data(test_label, path_rawdata, test_img_name, batch_size, step,
                                                        eval_steps, img_szie)
@@ -264,12 +269,14 @@ if __name__ == '__main__':
             real1 = y1.argmax(dim=1)
 
             corr_eval += torch.eq(pred1, real1).sum().float().item()
+            eval_size += img_tensor.size(0)
 
-        corr_eval /= len(test_img_name)
+        corr_eval /= eval_size
         if corr_eval > best_acc:
-            torch.save(model.state_dict(), os.path.join(model_save_path, "best.pt"))
+            torch.save(model.state_dict(), os.path.join(model_save_path, "best0.pt"))
         eval_acc_list.append(corr_eval)
-        corr_val /= len(val_img_name)
+
+        corr_val /= val_size
         val_acc_list.append(corr_val)
         lr_sch.step()
 

@@ -6,7 +6,7 @@
 # @Software: PyCharm
 import sys
 import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 sys.path.append("../..")
 sys.path.append("./utils")
 import torch
@@ -167,9 +167,10 @@ if __name__ == '__main__':
         with tqdm(total=len(range(steps))) as _tqdm:  # 使用需要的参数对tqdm进行初始化
 
             _tqdm.set_description('epoch: {}/{}'.format(epoch + 1, epochs))
+            train_size = 0
             for step in range(steps):
                 img_tensor, label_tensor = load_batch_data(train_label, path_rawdata, train_img_name, batch_size, step,
-                                                           steps, img_szie, add_noisy=True)
+                                                           steps, img_szie, add_noisy=False)
                 # print(train_label)
                 img_tensor = img_tensor.unsqueeze(1)
                 img_tensor = img_tensor.to(device)
@@ -207,6 +208,7 @@ if __name__ == '__main__':
                 real1 = label1.argmax(dim=1)
 
                 corr_train += torch.eq(pred1, real1).sum().float().item()
+                train_size += img_tensor.size(0)
 
                 loss_ = loss_total.data
 
@@ -216,9 +218,10 @@ if __name__ == '__main__':
                 _tqdm.set_postfix({"train_acc":acc_train, "val_acc": corr_val, "eval_acc": corr_eval,"losss": loss_})
                 _tqdm.update(1)
         train_loss.append(loss_.item())
-        acc_train = corr_train / len(train_img_name)
+        acc_train = corr_train / train_size
         train_acc_list.append(acc_train)
         corr_val = 0
+        val_size = 0
         for step in range(val_steps):
             img_tensor, label_tensor = load_batch_data(val_label, path_rawdata, val_img_name, batch_size, step,
                                                        val_steps, img_szie)
@@ -239,39 +242,41 @@ if __name__ == '__main__':
             real1 = y1.argmax(dim=1)
 
             corr_val += torch.eq(pred1, real1).sum().float().item()
+            val_size += img_tensor.size(0)
 
-        if epoch%5==0:
-            corr_eval = 0.
-            for step in range(eval_steps):
-                img_tensor, label_tensor = load_batch_data(test_label, path_rawdata, test_img_name, batch_size, step,
-                                                           eval_steps, img_szie)
-                img_tensor = img_tensor.unsqueeze(1)
-                img_tensor = img_tensor.to(device)
-                # print(img_tensor.shape, label_tensor.shape)
-                label_tensor = label_tensor.to(device)
-                with torch.no_grad():
-                    result = model(img_tensor)
-                result = result.squeeze()
+        corr_eval = 0.
+        eval_size = 0
+        for step in range(eval_steps):
+            img_tensor, label_tensor = load_batch_data(test_label, path_rawdata, test_img_name, batch_size, step,
+                                                       eval_steps, img_szie)
+            img_tensor = img_tensor.unsqueeze(1)
+            img_tensor = img_tensor.to(device)
+            # print(img_tensor.shape, label_tensor.shape)
+            label_tensor = label_tensor.to(device)
+            with torch.no_grad():
+                result = model(img_tensor)
+            result = result.squeeze()
 
-                # result[result < 0.5] = 0
-                # result[result >= 0.5] = 1
+            # result[result < 0.5] = 0
+            # result[result >= 0.5] = 1
 
-                x1 = result[:, 0:2]
-                y1 = label_tensor[:, 0:2]
+            x1 = result[:, 0:2]
+            y1 = label_tensor[:, 0:2]
 
-                # print(y1)
+            # print(y1)
 
-                pred1 = x1.argmax(dim=1)
-                real1 = y1.argmax(dim=1)
+            pred1 = x1.argmax(dim=1)
+            real1 = y1.argmax(dim=1)
 
-                corr_eval += torch.eq(pred1, real1).sum().float().item()
+            corr_eval += torch.eq(pred1, real1).sum().float().item()
+            eval_size += img_tensor.size(0)
 
-
-            corr_eval /= len(test_img_name)
-            if corr_eval > best_acc:
-                torch.save(model.state_dict(), os.path.join(model_save_path, "best1.pt"))
+        corr_eval /= eval_size
+        if corr_eval > best_acc:
+            torch.save(model.state_dict(), os.path.join(model_save_path, "best.pt"))
         eval_acc_list.append(corr_eval)
-        corr_val /= len(val_img_name)
+
+        corr_val /= val_size
         val_acc_list.append(corr_val)
         lr_sch.step()
 

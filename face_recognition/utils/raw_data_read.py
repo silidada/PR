@@ -86,12 +86,19 @@ def read_rawdata(channels, path, image_name_list, dsize, add_noisy=False):
             img = mirror(img,1)
 
         if num_noisy * 3 <= ii < num_noisy * 4 and add_noisy:
-            angle = random.randint(0,360)
+            angle = random.randint(0,15)
             img = rotation(img,angle,1)
 
         if num_noisy * 4 <= ii < num_noisy * 5 and add_noisy:
             img = blur(img, 2)
 
+        if num_noisy * 5 <= ii < num_noisy * 6 and add_noisy:
+            angle = random.randint(0,15)
+            img = rotation(img,angle,0)
+        if num_noisy * 6 <= ii < num_noisy * 7 and add_noisy:
+            scale = random.randint(80,120)/100
+            img = img*scale
+            img = np.clip(img, a_min=0, a_max=255)
         ii += 1
 
         img_list.append(img)
