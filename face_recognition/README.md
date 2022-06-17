@@ -33,7 +33,7 @@
 具体模型结果如下：
 [原图](imgs/model.png)
 
-<img src=".imgs/model.png" alt="model" style="zoom: 50%;" />
+<img src="./imgs/model.png" alt="model" style="zoom: 50%;" />
 
 ### 2. 简化模型
 
