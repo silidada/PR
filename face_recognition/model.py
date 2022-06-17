@@ -88,7 +88,8 @@ class Model(nn.Module):
         self.batchNorm5 = nn.BatchNorm2d(256)
         # input (1*1*256) -> (1*1*2)
         self.conv6 = nn.Conv2d(256, 2, (1, 1), padding=0, stride=(1, 1))
-        self.sigmoid = nn.Sigmoid()
+        # self.sigmoid = nn.Sigmoid()
+        self.sigmoid = nn.Softmax()
 
     def forward(self, x):
         out = F.relu(self.batchNorm1(self.conv1(x)))
